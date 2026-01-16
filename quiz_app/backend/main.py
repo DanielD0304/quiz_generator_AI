@@ -10,39 +10,63 @@ load_dotenv()
 
 app = FastAPI(title="QuizAI Backend")
 
-# Konfiguration
+# Altes, stabiles SDK konfigurieren
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-flash')
+
+# Free Tier Modell - 2.5-flash-lite hat 10 RPM
+model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
 
 SYSTEM_INSTRUCTION = """
-Du bist ein Quiz-Redakteur. Erstelle für jede übergebene Kategorie GENAU EINE anspruchsvolle Quizfrage.
-Antworte NUR mit einem validen JSON-Array, das Objekte mit diesem Schema enthält:
-{
-  "category": "Name der Kategorie",
-  "question": "Die Frage",
-  "answer": "Korrekte Antwort",
-  "distractors": ["Falsch1", "Falsch2", "Falsch3"],
-  "fact": "Zusatzinfo"
-}
+Du bist ein Quiz-Redakteur. Erstelle für jede Kategorie GENAU EINE schwere Quizfrage.
+Antworte NUR mit einem validen JSON-Array. Keine Einleitung, kein Text.
+Schema: [{"category": "...", "question": "...", "answer": "...", "distractors": ["...", "...", "..."], "fact": "..."}]
 """
 
-async def fetch_batch(categories: List[str]):
-    """Holt Fragen für eine Liste von Kategorien in einem API-Call."""
-    prompt = f"Erstelle Fragen für folgende Kategorien: {', '.join(categories)}"
+async def fetch_batch(categories: List[str], retry_count=0):
+    full_prompt = f"{SYSTEM_INSTRUCTION}\n\nKategorien: {', '.join(categories)}"
     
     try:
-        response = await model.generate_content_async(
-            contents=[SYSTEM_INSTRUCTION, prompt],
-            generation_config={"response_mime_type": "application/json"}
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None, 
+            lambda: model.generate_content(
+                full_prompt,
+                generation_config=genai.types.GenerationConfig(
+                    response_mime_type="application/json",
+                    temperature=0.7
+                )
+            )
         )
-        return json.loads(response.text)
+        
+        # DEBUG: Zeige uns, was die KI wirklich sagt
+        if not response.text:
+            print(f"WARNUNG: Keine Antwort für {categories}. Grund: {response.prompt_feedback}")
+            return []
+
+        clean_text = response.text.strip()
+        # Manuelle Säuberung für den Fall, dass Markdown-Tags mitkommen
+        if clean_text.startswith("```"):
+            clean_text = clean_text.split("```")[1]
+            if clean_text.startswith("json"):
+                clean_text = clean_text[4:]
+        
+        return json.loads(clean_text)
+
+    except json.JSONDecodeError as e:
+        print(f"JSON FEHLER bei {categories}: {e}. Roh-Text: {response.text[:100]}")
+        return []
     except Exception as e:
-        print(f"Fehler beim Batch {categories}: {e}")
+        # Bei Rate-Limit: retry nach Wartezeit
+        if "429" in str(e) and retry_count < 3:
+            wait_time = 35 * (retry_count + 1)  # 35, 70, 105 Sekunden
+            print(f"Rate limit für {categories}, warte {wait_time}s...")
+            await asyncio.sleep(wait_time)
+            return await fetch_batch(categories, retry_count + 1)
+        print(f"ALLGEMEINER FEHLER bei {categories}: {e}")
         return []
 
 @app.get("/prepare-round")
 async def prepare_round():
-    # Alle 20 Kategorien
     all_categories = [
         "Geschichte", "Geographie", "Naturwissenschaft", "Sport", 
         "Film & Fernsehen", "Musik", "Literatur", "Politik", 
@@ -50,18 +74,20 @@ async def prepare_round():
         "Religion", "Architektur", "Wirtschaft", "Mode"
     ]
     
+    # Sequentiell statt parallel - schont das Quota
+    all_questions = []
     chunks = [all_categories[i:i + 4] for i in range(0, len(all_categories), 4)]
     
-    # Führe alle Requests PARALLEL aus
-    tasks = [fetch_batch(chunk) for chunk in chunks]
-    results = await asyncio.gather(*tasks)
+    for chunk in chunks:
+        questions = await fetch_batch(chunk)
+        all_questions.extend(questions)
+        # Kurze Pause zwischen Requests
+        await asyncio.sleep(2)
     
-    flat_questions = [item for sublist in results for item in sublist]
-    
-    if not flat_questions:
-        raise HTTPException(status_code=500, detail="KI konnte keine Fragen generieren")
+    if not all_questions:
+        raise HTTPException(status_code=500, detail="KI-Fehler beim Generieren")
         
-    return {"status": "ready", "questions": flat_questions}
+    return {"status": "ready", "questions": all_questions}
 
 if __name__ == "__main__":
     import uvicorn
