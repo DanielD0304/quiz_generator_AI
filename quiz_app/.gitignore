@@ -1,4 +1,33 @@
-.env
-__pycache__/
-venv/
+# -----------------------
+# GLOBAL / IDE (Betrifft das ganze Projekt)
+# -----------------------
 .vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# -----------------------
+# BACKEND (PYTHON)
+# -----------------------
+# Ignoriere den venv Ordner im Backend (und im Hauptordner, falls vorhanden)
+venv/
+backend/venv/
+.venv/
+
+# Python Cache & Logs
+__pycache__/
+*.pyc
+*.log
+
+# WICHTIG: API Keys und Secrets nie hochladen!
+.env
+backend/.env
+
+# -----------------------
+# FRONTEND FALLBACK (Optional)
+# -----------------------
+# Eigentlich regelt das die .gitignore im frontend/-Ordner,
+# aber doppelt hält besser, falls du den Ordner mal verschiebst.
+frontend/build/
+frontend/.dart_tool/
