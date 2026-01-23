@@ -4,22 +4,33 @@ import os
 from typing import List
 from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
-import google.generativeai as genai
+from mock_questions import MOCK_QUESTIONS
 
 load_dotenv()
 
 app = FastAPI(title="QuizAI Backend")
 
-# Altes, stabiles SDK konfigurieren
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# Umgebungsvariable um Mock-Modus zu steuern (Standard: True für Entwicklung)
+USE_MOCK = os.getenv("USE_MOCK", "true").lower() == "true"
 
-# Free Tier Modell - 2.5-flash-lite hat 10 RPM
-model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
+if not USE_MOCK:
+    import google.generativeai as genai
+    # Altes, stabiles SDK konfigurieren
+    genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+    # Free Tier Modell - 2.5-flash-lite hat 10 RPM
+    model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
+else:
+    print("🎭 MOCK-MODUS aktiviert - keine API-Calls")
+    genai = None
+    model = None
 
 SYSTEM_INSTRUCTION = """
-Du bist ein Quiz-Redakteur. Erstelle für jede Kategorie GENAU EINE schwere Quizfrage.
-Antworte NUR mit einem validen JSON-Array. Keine Einleitung, kein Text.
-Schema: [{"category": "...", "question": "...", "answer": "...", "distractors": ["...", "...", "..."], "fact": "..."}]
+Du bist ein Redakteur für das Brettspiel "Bezzerwizzer". 
+Erstelle für die angegebene Kategorie eine anspruchsvolle Wissensfrage.
+Die Antwort muss kurz und präzise sein (1-3 Wörter).
+
+Antworte NUR mit einem validen JSON-Array. Schema:
+[{"category": "...", "question": "...", "answer": "..."}]
 """
 
 async def fetch_batch(categories: List[str], retry_count=0):
@@ -73,6 +84,14 @@ async def prepare_round():
         "Technik", "Kunst", "Essen & Trinken", "Mensch", 
         "Religion", "Architektur", "Wirtschaft", "Mode"
     ]
+    
+    # Mock-Modus: Schnelle Antwort für Entwicklung
+    if USE_MOCK:
+        print("🎭 MOCK-MODUS: Verwende vordefinierte Fragen (spart API-Calls)")
+        return {"status": "ready", "questions": MOCK_QUESTIONS}
+    
+    # Echter API-Modus: Rufe Google Gemini auf
+    print("🔴 ECHTER API-MODUS: Generiere Fragen mit Google Gemini")
     
     # Sequentiell statt parallel - schont das Quota
     all_questions = []

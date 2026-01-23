@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../logic/quiz_provider.dart';
 import 'category_screen.dart';
+import 'stone_quiz_game_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -23,7 +24,7 @@ class HomeScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'Quiz AI',
+              'Quiz Arena',
               style: GoogleFonts.poppins(
                 fontSize: 48,
                 fontWeight: FontWeight.bold,
@@ -32,32 +33,22 @@ class HomeScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Generator',
+              'Wähle deinen Modus',
               style: GoogleFonts.poppins(
-                fontSize: 36,
+                fontSize: 20,
                 fontWeight: FontWeight.w300,
                 color: Colors.tealAccent,
               ),
             ),
-            const SizedBox(height: 48),
-            // Beschreibung
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                'Generiere intelligente Quizfragen\nmit KI zu verschiedenen Kategorien',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  color: Colors.white70,
-                  height: 1.5,
-                ),
-              ),
-            ),
             const SizedBox(height: 60),
-            // Start Button
-            ElevatedButton(
-              onPressed: () {
-                // Neue Fragen laden bevor zur CategoryScreen navigiert wird
+
+            // Modus 1: Quiz AI Generator
+            _ModeButton(
+              icon: Icons.auto_awesome,
+              title: "Quiz AI Generator",
+              subtitle: "Generiere KI-Fragen\nfür dein Bezzerwizzer",
+              color: Colors.teal,
+              onTap: () {
                 ref.read(quizProvider.notifier).loadGame();
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -65,21 +56,90 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 );
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.tealAccent,
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 8,
+            ),
+            const SizedBox(height: 24),
+
+            // Modus 2: Stone Quiz Game
+            _ModeButton(
+              icon: Icons.games,
+              title: "Stone Quiz Game",
+              subtitle: "Spiele Bezzerwizzer\nvirtuelle Variante",
+              color: Colors.amber,
+              onTap: () {
+                ref.read(quizProvider.notifier).loadGame();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const StoneQuizGameScreen(),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Wiederverwendbarer Button für die Modi
+class _ModeButton extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ModeButton({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 280,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [color.withOpacity(0.8), color.withOpacity(0.5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.4),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            )
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 48, color: Colors.white),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
-              child: Text(
-                'Quiz Starten',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: Colors.white70,
+                height: 1.4,
               ),
             ),
           ],

@@ -11,138 +11,248 @@ class QuestionDialog extends StatefulWidget {
   State<QuestionDialog> createState() => _QuestionDialogState();
 }
 
-class _QuestionDialogState extends State<QuestionDialog> {
-  bool isAnswerRevealed = false; // Wurde die Antwort schon angezeigt?
+class _QuestionDialogState extends State<QuestionDialog> with SingleTickerProviderStateMixin {
+  late AnimationController _flipController;
+  bool _isFlipped = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _flipController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+  }
+
+  @override
+  void dispose() {
+    _flipController.dispose();
+    super.dispose();
+  }
+
+  void _toggleFlip() {
+    if (_isFlipped) {
+      _flipController.reverse();
+    } else {
+      _flipController.forward();
+    }
+    setState(() {
+      _isFlipped = !_isFlipped;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: const Color(0xFF2D2D44),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 1. Die Kategorie als Überschrift
-            Text(
-              widget.question.category.toUpperCase(),
-              style: GoogleFonts.poppins(
-                color: Colors.tealAccent,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.5,
-              ),
-            ),
-            const SizedBox(height: 16),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: GestureDetector(
+        onTap: _toggleFlip,
+        child: AnimatedBuilder(
+          animation: _flipController,
+          builder: (context, child) {
+            final angle = _flipController.value * 3.14159;
+            final isBack = _flipController.value > 0.5;
 
-            // 2. Die Frage
-            Text(
-              widget.question.question,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 24),
+            return Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.001)
+                ..rotateY(angle),
+              child: isBack
+                  ? _buildBackSide()
+                  : _buildFrontSide(),
+            );
+          },
+        ),
+      ),
+    );
+  }
 
-            // 3. Wenn Antwort noch nicht gezeigt: Button zum Anzeigen
-            if (!isAnswerRevealed) ...[
-              ElevatedButton(
-                onPressed: () => setState(() => isAnswerRevealed = true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.tealAccent,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: Text(
-                  "Antwort anzeigen",
-                  style: GoogleFonts.poppins(
-                    color: Colors.black,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              )
-            ]
-            // 4. Wenn Antwort gezeigt: Die Lösung + Fact anzeigen
-            else ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade900,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.green.shade600, width: 2),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      "RICHTIGE ANTWORT",
-                      style: GoogleFonts.poppins(
-                        color: Colors.green.shade200,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.question.correctAnswer,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              
-              // Der "Fact" (Wissenswertes)
-              const Divider(color: Colors.white24, height: 0),
-              const SizedBox(height: 16),
+  Widget _buildFrontSide() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.teal.shade700, Colors.teal.shade900],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          )
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Kategorie
+          Text(
+            widget.question.category.toUpperCase(),
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          // Frage - Riesengroß
+          Text(
+            widget.question.question,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 48),
+
+          // Tap-Hinweis
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.touch_app, color: Colors.white70, size: 20),
+              const SizedBox(width: 8),
               Text(
-                "WUSSTEST DU SCHON?",
-                style: GoogleFonts.poppins(
-                  color: Colors.white54,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.question.fact,
-                textAlign: TextAlign.center,
+                "Tippen zum Umdrehen",
                 style: GoogleFonts.poppins(
                   color: Colors.white70,
                   fontSize: 12,
                   fontStyle: FontStyle.italic,
                 ),
               ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white12,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                ),
-                child: Text(
-                  "Weiter",
-                  style: GoogleFonts.poppins(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              )
-            ]
-          ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackSide() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.green.shade700, Colors.green.shade900],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          )
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Label
+          Text(
+            "RICHTIGE ANTWORT",
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Antwort - Riesengroß
+          Text(
+            widget.question.answer,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 48),
+
+          // Bewertungs-Buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildRatingButton(
+                icon: Icons.check_circle,
+                label: "Gewusst",
+                color: Colors.green.shade400,
+                onTap: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+              const SizedBox(width: 16),
+              _buildRatingButton(
+                icon: Icons.cancel,
+                label: "Nicht gewusst",
+                color: Colors.red.shade400,
+                onTap: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Erneut tippen zum Zurückdrehen
+          Text(
+            "Nochmal tippen zum Zurückdrehen",
+            style: GoogleFonts.poppins(
+              color: Colors.white70,
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRatingButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color, width: 2),
+            ),
+            child: Icon(icon, color: color, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
