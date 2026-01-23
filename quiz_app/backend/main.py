@@ -5,6 +5,7 @@ from typing import List
 from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
 from mock_questions import MOCK_QUESTIONS
+import random
 
 load_dotenv()
 
@@ -24,17 +25,39 @@ else:
     genai = None
     model = None
 
-SYSTEM_INSTRUCTION = """
+def get_difficulty_prompt(difficulty: str = "medium") -> str:
+    """Gibt einen angepassten Prompt basierend auf Schwierigkeitsstufe zurück."""
+    if difficulty == "easy":
+        return """
 Du bist ein Redakteur für das Brettspiel "Bezzerwizzer". 
-Erstelle für die angegebene Kategorie eine anspruchsvolle Wissensfrage.
+Erstelle eine EINFACHE Wissensfrage, die auch Kinder oder Anfänger beantworten können.
+Die Antwort muss kurz und präzise sein (1-2 Wörter).
+
+Antworte NUR mit einem validen JSON-Array. Schema:
+[{"category": "...", "question": "...", "answer": "...", "fact": "Ein kurzer, interessanter Zusatzfakt."}]
+"""
+    elif difficulty == "hard":
+        return """
+Du bist ein Redakteur für das Brettspiel "Bezzerwizzer".
+Erstelle eine SEHR SCHWIERIGE Wissensfrage für Experten - mit Nischenfakten, Trivia oder Detailfragen.
 Die Antwort muss kurz und präzise sein (1-3 Wörter).
 
 Antworte NUR mit einem validen JSON-Array. Schema:
-[{"category": "...", "question": "...", "answer": "..."}]
+[{"category": "...", "question": "...", "answer": "...", "fact": "Ein faszinierender Zusatzfakt zur Antwort."}]
+"""
+    else:  # medium (default)
+        return """
+Du bist ein Redakteur für das Brettspiel "Bezzerwizzer".
+Erstelle eine anspruchsvolle, aber faire Wissensfrage mit mittlerem Schwierigkeitsgrad.
+Die Antwort muss kurz und präzise sein (1-3 Wörter).
+
+Antworte NUR mit einem validen JSON-Array. Schema:
+[{"category": "...", "question": "...", "answer": "...", "fact": "Ein interessanter Zusatzfakt zur Antwort."}]
 """
 
-async def fetch_batch(categories: List[str], retry_count=0):
-    full_prompt = f"{SYSTEM_INSTRUCTION}\n\nKategorien: {', '.join(categories)}"
+async def fetch_batch(categories: List[str], difficulty: str = "medium", retry_count=0):
+    prompt = get_difficulty_prompt(difficulty)
+    full_prompt = f"{prompt}\n\nKategorien: {', '.join(categories)}"
     
     try:
         loop = asyncio.get_event_loop()
@@ -76,29 +99,30 @@ async def fetch_batch(categories: List[str], retry_count=0):
         print(f"ALLGEMEINER FEHLER bei {categories}: {e}")
         return []
 
+
 @app.get("/prepare-round")
-async def prepare_round():
+async def prepare_round(difficulty: str = "medium"):
     all_categories = [
         "Geschichte", "Geographie", "Naturwissenschaft", "Sport", 
         "Film & Fernsehen", "Musik", "Literatur", "Politik", 
         "Technik", "Kunst", "Essen & Trinken", "Mensch", 
         "Religion", "Architektur", "Wirtschaft", "Mode"
     ]
-    
+        
     # Mock-Modus: Schnelle Antwort für Entwicklung
     if USE_MOCK:
-        print("🎭 MOCK-MODUS: Verwende vordefinierte Fragen (spart API-Calls)")
+        print(f"🎭 MOCK-MODUS: Verwende vordefinierte Fragen (difficulty={difficulty})")
         return {"status": "ready", "questions": MOCK_QUESTIONS}
     
     # Echter API-Modus: Rufe Google Gemini auf
-    print("🔴 ECHTER API-MODUS: Generiere Fragen mit Google Gemini")
+    print(f"🔴 ECHTER API-MODUS: Generiere Fragen mit Schwierigkeit={difficulty}")
     
     # Sequentiell statt parallel - schont das Quota
     all_questions = []
     chunks = [all_categories[i:i + 4] for i in range(0, len(all_categories), 4)]
     
     for chunk in chunks:
-        questions = await fetch_batch(chunk)
+        questions = await fetch_batch(chunk, difficulty=difficulty)
         all_questions.extend(questions)
         # Kurze Pause zwischen Requests
         await asyncio.sleep(2)
@@ -107,6 +131,24 @@ async def prepare_round():
         raise HTTPException(status_code=500, detail="KI-Fehler beim Generieren")
         
     return {"status": "ready", "questions": all_questions}
+
+
+@app.get("/refill")
+async def refill(category: str, difficulty: str = "medium"):
+    """Lädt eine einzelne neue Frage für eine Kategorie nach."""
+    if USE_MOCK:
+        # Gib eine zufällige Mock-Frage aus der gleichen Kategorie zurück
+        matching = [q for q in MOCK_QUESTIONS if q.get("category", "").lower() == category.lower()]
+        if matching:
+            return random.choice(matching)
+        return {"error": "Kategorie nicht gefunden"}
+    
+    # API-Modus
+    questions = await fetch_batch([category], difficulty=difficulty)
+    if questions:
+        return questions[0]
+    raise HTTPException(status_code=500, detail="KI-Fehler beim Nachladen")
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -182,7 +182,47 @@ class _QuestionDialogState extends State<QuestionDialog> with SingleTickerProvid
               height: 1.4,
             ),
           ),
-          const SizedBox(height: 48),
+          
+          // Fun Fact - wenn vorhanden
+          if (widget.question.fact != null) ...[
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    "💡 WUSSTEST DU SCHON?",
+                    style: GoogleFonts.poppins(
+                      color: Colors.white70,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.question.fact!,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          
+          const SizedBox(height: 32),
 
           // Bewertungs-Buttons
           Row(

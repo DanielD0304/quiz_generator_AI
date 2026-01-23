@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../logic/quiz_provider.dart';
+import '../../data/repos/quiz_service.dart';
 import '../widgets/question_dialog.dart';
+import '../../../../core/category_icons.dart';
 
 class StoneQuizGameScreen extends ConsumerWidget {
   const StoneQuizGameScreen({super.key});
@@ -58,7 +60,7 @@ class StoneQuizGameScreen extends ConsumerWidget {
   }
 }
 
-// Spielbrett mit 4x4 Grid
+// Spielbrett mit 3x Spalten und ewigen Fragen
 class GameBoard extends StatefulWidget {
   final List<String> categories;
   final Map<String, dynamic> questionsMap;
@@ -73,140 +75,184 @@ class GameBoard extends StatefulWidget {
 }
 
 class _GameBoardState extends State<GameBoard> {
-  final Set<int> answeredQuestions = {};
-  int currentPlayerScore = 0;
+  // Wir speichern den Zustand lokal: Welche Fragen haben wir aktuell?
+  late Map<String, dynamic> activeQuestions;
+  // Welche Kategorien laden gerade nach?
+  final Set<String> loadingCategories = {};
+
+  @override
+  void initState() {
+    super.initState();
+    activeQuestions = Map.from(widget.questionsMap);
+  }
+
+  // Funktion zum Nachladen einer Kategorie
+  Future<void> refillCategory(String category) async {
+    setState(() {
+      loadingCategories.add(category);
+    });
+
+    try {
+      final quizService = QuizService();
+      final newQuestion = await quizService.fetchSingleQuestion(category);
+      
+      if (mounted) {
+        setState(() {
+          // Wir überschreiben die alte Frage mit der neuen
+          activeQuestions[category] = newQuestion; 
+          loadingCategories.remove(category);
+        });
+      }
+    } catch (e) {
+      print("Fehler beim Refill: $e");
+      if (mounted) {
+        setState(() => loadingCategories.remove(category));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Score Display
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.tealAccent,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              "Punkte: $currentPlayerScore",
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-          ),
-        ),
-        // Quiz Grid
-        Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 1,
-            ),
-            itemCount: widget.categories.length,
-            itemBuilder: (context, index) {
-              final isAnswered = answeredQuestions.contains(index);
-              return _QuizStone(
-                index: index,
-                category: widget.categories[index],
-                isAnswered: isAnswered,
-                onTap: () {
-                  if (!isAnswered) {
-                    final question = widget.questionsMap[widget.categories[index]];
-                    if (question != null) {
-                      showDialog(
-                        context: context,
-                        builder: (context) => QuestionDialog(question: question),
-                      ).then((_) {
-                        // Nach Antwort: Stein markieren als beantwortet
-                        setState(() {
-                          answeredQuestions.add(index);
-                        });
-                      });
-                    }
-                  }
-                },
-              );
-            },
-          ),
-        ),
-      ],
+    // GridView sortiert nach Alphabet, damit man die Steine schnell findet
+    final sortedCategories = List<String>.from(widget.categories)..sort();
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3, // 3 Spalten sind besser lesbar bei 16 Kategorien
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1.1,
+      ),
+      itemCount: sortedCategories.length,
+      itemBuilder: (context, index) {
+        final category = sortedCategories[index];
+        final question = activeQuestions[category];
+        final isLoading = loadingCategories.contains(category);
+
+        return _CategoryCard(
+          category: category,
+          isLoading: isLoading,
+          onTap: () async {
+            if (isLoading || question == null) return;
+
+            // 1. Dialog zeigen
+            await showDialog(
+              context: context,
+              builder: (context) => QuestionDialog(question: question),
+            );
+
+            // 2. Sobald Dialog zu ist -> SOFORT Nachladen im Hintergrund
+            refillCategory(category);
+          },
+        );
+      },
     );
   }
 }
 
-// Einzelner Quiz-Stein
-class _QuizStone extends StatelessWidget {
-  final int index;
+// Kleine Hilfs-Widget für die Optik
+class _CategoryCard extends StatelessWidget {
   final String category;
-  final bool isAnswered;
+  final bool isLoading;
   final VoidCallback onTap;
 
-  const _QuizStone({
-    required this.index,
+  const _CategoryCard({
     required this.category,
-    required this.isAnswered,
+    required this.isLoading,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final icon = CategoryHelper.getIcon(category);
+    final color = CategoryHelper.getColor(category);
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: isAnswered ? null : onTap,
+        onTap: isLoading ? null : onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
           decoration: BoxDecoration(
-            gradient: isAnswered
-                ? LinearGradient(
-                    colors: [Colors.grey.shade700, Colors.grey.shade900],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : LinearGradient(
-                    colors: [Colors.amber.shade600, Colors.amber.shade800],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+            gradient: LinearGradient(
+              colors: [
+                color.withOpacity(0.6),
+                color.withOpacity(0.3),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: color.withOpacity(0.5),
+              width: 2,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.4),
+                color: color.withOpacity(0.3),
                 blurRadius: 8,
-                offset: const Offset(2, 4),
+                offset: const Offset(0, 4),
               )
             ],
           ),
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Kategorie-Text
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(
-                  category,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    color: isAnswered ? Colors.white38 : Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
+              // Icon im Hintergrund (transparent)
+              Opacity(
+                opacity: 0.15,
+                child: Icon(
+                  icon,
+                  size: 64,
+                  color: Colors.white,
                 ),
               ),
-              // Checkmark wenn beantwortet
-              if (isAnswered)
-                Icon(
-                  Icons.check_circle,
-                  color: Colors.green.shade400,
-                  size: 32,
-                )
+              // Inhalt in der Mitte
+              Center(
+                child: isLoading
+                    ? const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            "Nachfüllen...",
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            icon,
+                            size: 32,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text(
+                              category,
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                height: 1.2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
             ],
           ),
         ),
