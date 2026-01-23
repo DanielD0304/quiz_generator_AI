@@ -18,6 +18,10 @@ class CategoryScreen extends ConsumerWidget {
         title: Text("Quiz AI Generator", style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF1E1E2C),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.tealAccent),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: quizState.when(
         // 1. Ladezustand

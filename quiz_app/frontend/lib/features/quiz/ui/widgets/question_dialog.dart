@@ -12,8 +12,7 @@ class QuestionDialog extends StatefulWidget {
 }
 
 class _QuestionDialogState extends State<QuestionDialog> {
-  String? selectedAnswer;
-  bool isRevealed = false; // Wurde schon aufgelöst?
+  bool isAnswerRevealed = false; // Wurde die Antwort schon angezeigt?
 
   @override
   Widget build(BuildContext context) {
@@ -49,108 +48,100 @@ class _QuestionDialogState extends State<QuestionDialog> {
             ),
             const SizedBox(height: 24),
 
-            // 3. Die Antwort-Buttons
-            ...widget.question.allAnswers.map((answer) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _AnswerButton(
-                  text: answer,
-                  state: _getButtonState(answer),
-                  onTap: () => _handleAnswer(answer),
+            // 3. Wenn Antwort noch nicht gezeigt: Button zum Anzeigen
+            if (!isAnswerRevealed) ...[
+              ElevatedButton(
+                onPressed: () => setState(() => isAnswerRevealed = true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.tealAccent,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-              );
-            }),
-
-            // 4. Der "Fact" (erscheint erst nach Antwort)
-            if (isRevealed) ...[
-              const Divider(color: Colors.white24, height: 30),
+                child: Text(
+                  "Antwort anzeigen",
+                  style: GoogleFonts.poppins(
+                    color: Colors.black,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              )
+            ]
+            // 4. Wenn Antwort gezeigt: Die Lösung + Fact anzeigen
+            else ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade900,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade600, width: 2),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      "RICHTIGE ANTWORT",
+                      style: GoogleFonts.poppins(
+                        color: Colors.green.shade200,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.question.correctAnswer,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              
+              // Der "Fact" (Wissenswertes)
+              const Divider(color: Colors.white24, height: 0),
+              const SizedBox(height: 16),
               Text(
                 "WUSSTEST DU SCHON?",
-                style: GoogleFonts.poppins(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold),
+                style: GoogleFonts.poppins(
+                  color: Colors.white54,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Text(
                 widget.question.fact,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12, fontStyle: FontStyle.italic),
+                style: GoogleFonts.poppins(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(), // Fenster schließen
-                child: const Text("Weiter"),
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white12,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                ),
+                child: Text(
+                  "Weiter",
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               )
             ]
           ],
-        ),
-      ),
-    );
-  }
-
-  // Logik: Welche Farbe hat der Button?
-  AnswerState _getButtonState(String answer) {
-    if (!isRevealed) return AnswerState.neutral;
-    if (answer == widget.question.correctAnswer) return AnswerState.correct;
-    if (answer == selectedAnswer && answer != widget.question.correctAnswer) return AnswerState.wrong;
-    return AnswerState.disabled;
-  }
-
-  void _handleAnswer(String answer) {
-    if (isRevealed) return; // Nichts tun, wenn schon geantwortet wurde
-    setState(() {
-      selectedAnswer = answer;
-      isRevealed = true;
-    });
-  }
-}
-
-// --- Hilfs-Widgets ---
-
-enum AnswerState { neutral, correct, wrong, disabled }
-
-class _AnswerButton extends StatelessWidget {
-  final String text;
-  final AnswerState state;
-  final VoidCallback onTap;
-
-  const _AnswerButton({required this.text, required this.state, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    Color bgColor;
-    Color textColor = Colors.white;
-
-    switch (state) {
-      case AnswerState.correct:
-        bgColor = Colors.green.shade700;
-        break;
-      case AnswerState.wrong:
-        bgColor = Colors.red.shade700;
-        break;
-      case AnswerState.disabled:
-        bgColor = Colors.white10;
-        textColor = Colors.white38;
-        break;
-      default:
-        bgColor = Colors.white12;
-    }
-
-    return GestureDetector(
-      onTap: state == AnswerState.disabled ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(10),
-          border: state == AnswerState.neutral 
-              ? Border.all(color: Colors.white24) 
-              : null,
-        ),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.poppins(color: textColor, fontSize: 14),
         ),
       ),
     );

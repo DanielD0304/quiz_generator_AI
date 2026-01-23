@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'features/quiz/ui/screens/category_screen.dart';
+import 'features/quiz/ui/screens/home_screen.dart';
 
 void main() {
   runApp(const ProviderScope(child: MyApp()));
@@ -15,7 +15,7 @@ class MyApp extends StatelessWidget {
       title: 'Quiz AI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(),
-      home: const CategoryScreen(),
+      home: const HomeScreen(),
     );
   }
 }
