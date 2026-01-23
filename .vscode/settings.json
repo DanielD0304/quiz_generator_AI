@@ -4,5 +4,6 @@
         "dotenv",
         "gemini",
         "genai"
-    ]
+    ],
+    "cmake.ignoreCMakeListsMissing": true
 }
